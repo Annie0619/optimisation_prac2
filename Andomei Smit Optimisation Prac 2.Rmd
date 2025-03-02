@@ -295,4 +295,154 @@ plot(all_fx,type="l")
 ```
 From the above plot we can see that this peturbing function actually performs worse than the previous model.
 
+# Genetic Algorithms
+## Changing the solution to the traveling salesman problem
+
+```{r}
+# Generate initial population of solutions (given number of cities and size of popn)
+initial_pop = function(varsize, popsize){
+  # sample 1:21 popsize number of times
+  pop0 <- matrix(NA, popsize, varsize)
+  for(i in 1:popsize){
+    pop0[i,] <- sample(1:nrow(y), replace = F)
+  }
+  return(pop0)
+}
+```
+
+```{r}
+# evaluate the total distance for each item in the population
+evaluate_pop = function(pop, y){
+  # y is the distance matrix
+  
+  # create empty eval vector:
+  evals = rep(0,nrow(pop))
+  for(i in 1:nrow(pop)){
+    # sum pairwise distances between city for each population member
+    evals[i] <- sum(y[cbind(pop[i,][-length(pop[i,])], pop[i,][-1])])
+  }
+  return(evals)
+}
+
+```
+
+```{r}
+# Function for selection (outputs = parents) 
+# proportional to fitness
+select = function(pop,fitness){
+  newpop = matrix(NA, nrow(pop), ncol(pop))
+  # randomly select how many you want to change
+  # note: change the prob to be inverted (smaller distances have greater prob)
+  probabilities <- dnorm(scale(fitness))
+  picks = sample(1:nrow(pop), prob = probabilities, replace = T)
+  for(i in 1:length(picks)){
+    # replace the columns newpop with the random draw of the old population
+    newpop[i, ] = pop[picks[i], ]
+  }
+  return(newpop)  
+}
+```
+
+```{r}
+# Function for crossover step (outputs = offspring_crossover)
+#uniform crossover
+crossover = function(parents){
+  popsize = nrow(parents)
+  varsize = ncol(parents)
+  # Pick parents to mate randomly
+  parent_pairs = matrix(sample(1:popsize), popsize/2, 2)
+  # Initialise offspring
+  offsprings = matrix(NA, popsize, varsize)
+  for(i in 1:nrow(parent_pairs)){
+    # Get parents
+    p1 = parents[parent_pairs[i,1], ]
+    p2 = parents[parent_pairs[i,2], ]
+    # Make kids
+    c1 = rep(NA, varsize)
+    c2 = rep(NA, varsize)
+    # Apply uniform crossover to get kids
+    for(j in 1:varsize){
+      if(runif(1) <= 0.5){
+        c1[j] = p1[j] # c1's jth element is same as p1's jth element
+        c2[j] = p2[j] 
+      }else{
+        c2[j] = p1[j] 
+        c1[j] = p2[j] 
+      }
+    }
+    # Store kids
+    offsprings[2*i-1, ] = c1
+    offsprings[2*i, ]   = c2
+  }
+  return(offsprings)  
+}
+```
+
+```{r}
+# Function for mutation step (outputs = offspring_mutation) (no changes made)
+#scramble mutation
+mutation = function(offspring_crossover,mutation_rate=0.05){
+  # Initialise mutations
+  mutations = matrix(NA, nrow(offspring_crossover), ncol(offspring_crossover))
+  
+  for(i in 1:nrow(offspring_crossover)){
+    persontomutate = offspring_crossover[i,]
+    if(runif(1) <= mutation_rate){
+      # Select two elements
+      picks = sort(sample(1:ncol(offspring_crossover), 
+                          2, replace = FALSE))
+      # Get sub-set
+      temp = persontomutate[picks[1]:picks[2]]
+      # Reshuffle
+      temp = sample(temp, length(temp), replace = FALSE)
+      # Add mutation
+      persontomutate[picks[1]:picks[2]] = temp
+      mutations[i,] = persontomutate
+    }else{
+      mutations[i,] = persontomutate
+    }
+  }
+  return(mutations)  
+}
+```
+
+
+```{r}
+# Function for replacement (outputs = new population)
+#generational replacement
+replace = function(parents,offspring_mutation){
+  return(offspring_mutation)  
+}
+```
+
+
+```{r}
+## putting it all together
+#pts = c(10, 20, 15, 2, 30,10, 30)
+#wts = c(1, 5, 10, 1, 7, 5, 1)
+set.seed(10)
+n_pop = 100
+n_vars = ncol(y)
+this_pop = initial_pop(varsize=n_vars,popsize=n_pop)
+
+min_evals = c()
+mean_evals = c()
+n_gen = 50
+
+for(gen in 1:n_gen){
+  evals = evaluate_pop(pop=this_pop, y=y)
+  next_parents = select(pop=this_pop,fitness=evals)
+  offspring_crossover = crossover(parents=next_parents)
+  offspring_mutation = mutation(offspring_crossover,mutation_rate=0.05)
+  this_pop = replace(next_parents, offspring_mutation)
+  min_evals = c(min_evals,min(evals))
+  mean_evals = c(mean_evals,mean(evals))
+}
+
+plot(1:n_gen,mean_evals,
+     ylim=c(min(c(min_evals,mean_evals)),max(c(min_evals,mean_evals))))
+lines(1:n_gen,min_evals,lty=2)
+
+```
+
 
